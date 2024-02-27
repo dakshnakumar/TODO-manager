@@ -1,30 +1,64 @@
 import styles from '../styles/pages/Profile.module.css';
-
-import { useState } from 'react';
+import SignIn from '../components/SignIn';
+import {gql, useMutation, useSubscription,useQuery} from '@apollo/client'
+import { toast } from 'react-hot-toast';
+import { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet';
 import { useOutletContext } from 'react-router-dom';
 import Input from '../components/Input';
 
+const GET_USERS = gql`
+  query GetUsers {
+    users {
+      id
+    }
+  }
+`;
+
+
+const UPDATE_USER_MUTATION = gql`
+  mutation ($id: uuid!, $displayName: String!, $metadata: jsonb) {
+    updateUser(pk_columns: { id: $id }, _set: { displayName: $displayName, metadata: $metadata }) {
+      id
+      displayName
+      metadata
+    }
+  }
+`;
+
 const Profile = () => {
-  const { user } = useOutletContext();
+  const { loading, error, data } = useQuery(GET_USERS);
+  const [mutateUser, { loading: updatingProfile }] = useMutation(UPDATE_USER_MUTATION);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [isProfileFormDirty, setIsProfileFormDirty] = useState(false);
+  const updateUserProfile = async (e) => {
+    e.preventDefault()
+    try {
+      await mutateUser({
+        variables: {
+          id: data.users[0].id,
+          displayName: `${firstName} ${lastName}`.trim(),
+          metadata: {
+            firstName,
+            lastName
+          }
+        }
+      })
+      toast.success('Updated successfully', { id: 'updateProfile' })
+    } catch (error) {
+      toast.error('Unable to update profile', { id: 'updateProfile' })
+    }
 
-  const [firstName, setFirstName] = useState(user?.metadata?.firstName ?? '');
-  const [lastName, setLastName] = useState(user?.metadata?.lastName ?? '');
-
-  const isFirstNameDirty = firstName !== user?.metadata?.firstName;
-  const isLastNameDirty = lastName !== user?.metadata?.lastName;
-  const isProfileFormDirty = isFirstNameDirty || isLastNameDirty;
-
-  const updateUserProfile = async e => {
-    e.preventDefault();
-  };
+    setFirstName('')
+    setLastName('')
+  }
 
   return (
     <>
       <Helmet>
         <title>Profile - Nhost</title>
       </Helmet>
-
       <div className={styles.container}>
         <div className={styles.info}>
           <h2>Profile</h2>
@@ -39,14 +73,17 @@ const Profile = () => {
                   type="text"
                   label="First name"
                   value={firstName}
-                  onChange={e => setFirstName(e.target.value)}
+                  onChange={ (e) => {setFirstName(e.target.value)
+                  setIsProfileFormDirty(true);}}
                   required
                 />
                 <Input
                   type="text"
                   label="Last name"
                   value={lastName}
-                  onChange={e => setLastName(e.target.value)}
+                  onChange={(e) => {setLastName(e.target.value)
+                    setIsProfileFormDirty(true)}
+                  }
                   required
                 />
               </div>
@@ -54,7 +91,7 @@ const Profile = () => {
                 <Input
                   type="email"
                   label="Email address"
-                  value={user?.email}
+                  // value={user?.email}
                   readOnly
                 />
               </div>
